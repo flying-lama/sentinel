@@ -7,6 +7,8 @@ import (
 	"syscall"
 )
 
+var version = "dev"
+
 func main() {
 	// Set up logging
 	log.SetOutput(os.Stdout)
@@ -30,7 +32,7 @@ func main() {
 
 	// Run the sentinel in a goroutine
 	go func() {
-		log.Println("Starting Sentinel DNS monitor...")
+		log.Printf("Starting Sentinel DNS monitor (Version %s)", version)
 		sentinel.Run()
 	}()
 
