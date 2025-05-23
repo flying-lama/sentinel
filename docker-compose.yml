@@ -1,0 +1,28 @@
+version: '3.8'
+
+services:
+  sentinel:
+    image: ghcr.io/flying-lama/sentinel:latest
+    environment:
+      - SENTINEL_DOMAIN=example.com
+      - SENTINEL_RECORD=lb
+      - SENTINEL_SERVER_IP=192.168.1.100
+      - SENTINEL_INWX_USER=your_username
+      - SENTINEL_INWX_RECORD_ID=12345
+      - SENTINEL_LOG_LEVEL=INFO
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    secrets:
+      - source: inwx_password
+        target: /run/secrets/inwx_password
+        mode: 0400
+    deploy:
+      mode: global
+      placement:
+        constraints:
+          - node.role == manager
+    restart: unless-stopped
+
+secrets:
+  inwx_password:
+    external: true

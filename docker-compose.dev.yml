@@ -1,0 +1,17 @@
+version: '3.8'
+
+services:
+  sentinel:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      - SENTINEL_DOMAIN=${SENTINEL_DOMAIN}
+      - SENTINEL_RECORD=${SENTINEL_RECORD}
+      - SENTINEL_SERVER_IP=${SENTINEL_SERVER_IP}
+      - SENTINEL_INWX_USER=${SENTINEL_INWX_USER}
+      - SENTINEL_INWX_PASSWORD=${SENTINEL_INWX_PASSWORD}
+      - SENTINEL_INWX_RECORD_ID=${SENTINEL_INWX_RECORD_ID}
+      - SENTINEL_LOG_LEVEL=${SENTINEL_LOG_LEVEL}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
