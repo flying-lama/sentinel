@@ -17,5 +17,10 @@ stop:
 	docker stop sentinel || true
 	docker rm sentinel || true
 
+test:
+	docker-compose -f docker-compose.test.yml build --no-cache
+	docker-compose -f docker-compose.test.yml up --force-recreate
+
+
 clean: stop
 	docker rmi sentinel || true

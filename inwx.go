@@ -48,7 +48,7 @@ type InwxResponse struct {
 
 // InwxRecordInfo represents DNS record information
 type InwxRecordInfo struct {
-	ID      int    `json:"recordId"`
+	ID      int    `json:"id"`
 	Name    string `json:"name"`
 	Type    string `json:"type"`
 	Content string `json:"content"`
@@ -161,9 +161,12 @@ func (i *InwxClient) GetRecordContent() (string, error) {
 	}
 
 	var respData struct {
-		Code    int            `json:"code"`
-		Message string         `json:"msg"`
-		ResData InwxRecordInfo `json:"resData"`
+		Code    int    `json:"code"`
+		Message string `json:"msg"`
+		ResData struct {
+			Count  int              `json:"count"`
+			Record []InwxRecordInfo `json:"record"`
+		} `json:"resData"`
 	}
 
 	if err := json.Unmarshal(infoBody, &respData); err != nil {
@@ -180,7 +183,12 @@ func (i *InwxClient) GetRecordContent() (string, error) {
 		return "", fmt.Errorf("info request failed: %s (code %d)", respData.Message, respData.Code)
 	}
 
-	return respData.ResData.Content, nil
+	// Check if we have at least one record
+	if respData.ResData.Count == 0 || len(respData.ResData.Record) == 0 {
+		return "", fmt.Errorf("no records found")
+	}
+
+	return respData.ResData.Record[0].Content, nil
 }
 
 // UpdateDNS updates the DNS record with a new IP
