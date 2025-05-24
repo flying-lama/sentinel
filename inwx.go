@@ -48,7 +48,7 @@ type InwxResponse struct {
 
 // InwxRecordInfo represents DNS record information
 type InwxRecordInfo struct {
-	ID      int    `json:"id"`
+	ID      int    `json:"recordId"`
 	Name    string `json:"name"`
 	Type    string `json:"type"`
 	Content string `json:"content"`
