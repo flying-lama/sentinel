@@ -36,7 +36,7 @@ type InwxUpdateParams struct {
 
 // InwxInfoParams represents parameters for getting record info
 type InwxInfoParams struct {
-	RecordID int `json:"id"`
+	RecordID int `json:"recordId"`
 }
 
 // InwxResponse represents a generic INWX API response
