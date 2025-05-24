@@ -99,6 +99,7 @@ func (i *InwxClient) Login() error {
 
 	var loginResp InwxResponse
 	if err := json.Unmarshal(body, &loginResp); err != nil {
+		log.Printf("Raw INWX response: %s", string(body))
 		return fmt.Errorf("error parsing login response: %v", err)
 	}
 
@@ -160,14 +161,13 @@ func (i *InwxClient) GetRecordContent() (string, error) {
 	}
 
 	var respData struct {
-		Code    int    `json:"code"`
-		Message string `json:"msg"`
-		ResData struct {
-			Record InwxRecordInfo `json:"record"`
-		} `json:"resData"`
+		Code    int            `json:"code"`
+		Message string         `json:"msg"`
+		ResData InwxRecordInfo `json:"resData"`
 	}
 
 	if err := json.Unmarshal(infoBody, &respData); err != nil {
+		log.Printf("Raw INWX response: %s", string(infoBody))
 		return "", fmt.Errorf("error parsing info response: %v", err)
 	}
 
@@ -180,7 +180,7 @@ func (i *InwxClient) GetRecordContent() (string, error) {
 		return "", fmt.Errorf("info request failed: %s (code %d)", respData.Message, respData.Code)
 	}
 
-	return respData.ResData.Record.Content, nil
+	return respData.ResData.Content, nil
 }
 
 // UpdateDNS updates the DNS record with a new IP
@@ -236,6 +236,7 @@ func (i *InwxClient) UpdateDNS(newIP string) error {
 
 	var respData InwxResponse
 	if err := json.Unmarshal(updateBody, &respData); err != nil {
+		log.Printf("Raw INWX response: %s", string(updateBody))
 		return fmt.Errorf("error parsing update response: %v", err)
 	}
 
