@@ -6,7 +6,6 @@ services:
     environment:
       - SENTINEL_DOMAIN=example.com
       - SENTINEL_RECORD=lb
-      - SENTINEL_SERVER_IP=192.168.1.100
       - SENTINEL_INWX_USER=your_username
       - SENTINEL_INWX_RECORD_ID=12345
       - SENTINEL_LOG_LEVEL=INFO

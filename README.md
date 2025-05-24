@@ -53,17 +53,17 @@ docker stack deploy -c docker-compose.yml sentinel
 
 ### Configuration
 
-| Environment Variable      | Description                        | Default     |
-|---------------------------|------------------------------------|-------------|
-| `SENTINEL_DOMAIN`         | Domain name                        | example.com |
-| `SENTINEL_RECORD`         | Record name (subdomain)            | lb          |
-| `SENTINEL_INWX_USER`      | INWX username                      | *required*  |
-| `SENTINEL_INWX_PASSWORD`  | INWX password                      | *required*  |
-| `SENTINEL_INWX_RECORD_ID` | ID of the DNS record to update     | *required*  |
-| `SENTINEL_LOG_LEVEL`      | Logging level (DEBUG, INFO, ERROR) | INFO        |
+| Environment Variable      | Description                        | Default                                               |
+|---------------------------|------------------------------------|-------------------------------------------------------|
+| `SENTINEL_DOMAIN`         | Domain name                        | example.com                                           |
+| `SENTINEL_RECORD`         | Record name (subdomain)            | lb                                                    |
+| `SENTINEL_INWX_USER`      | INWX username                      | *required*                                            |
+| `SENTINEL_INWX_PASSWORD`  | INWX password                      | *required, if docker secret "inwx_password" not set* |
+| `SENTINEL_INWX_RECORD_ID` | ID of the DNS record to update     | *required*                                            |
+| `SENTINEL_LOG_LEVEL`      | Logging level (DEBUG, INFO, ERROR) | INFO                                                  |
 
 #### Node labels for public IPs
-Instead of setting SENTINEL_SERVER_IP Sentinel can read the public IP address of each node from a Docker Swarm node label.
+Sentinel can read the public IP address of each node from a Docker Swarm node label.
 Run the following command on each node to set the "public_ip" label:
 
 ```bash
@@ -77,21 +77,10 @@ docker node inspect $NODE_ID --format '{{ index .Spec.Labels "public_ip" }}'
 ```
 ## Development
 
-1. Create a `.env` file with your configuration:
-
-```
-SENTINEL_DOMAIN=example.com
-SENTINEL_RECORD=lb
-SENTINEL_SERVER_IP=192.168.1.100
-SENTINEL_INWX_USER=your_username
-SENTINEL_INWX_PASSWORD=your_password
-SENTINEL_INWX_RECORD_ID=12345
-SENTINEL_LOG_LEVEL=INFO
-```
-
-### Local development
-
 ```bash
+# Copy and adjust to fit your setup
+cp .env.dist .env
+
 # Start development environment
 make dev
 

@@ -44,7 +44,7 @@ func NewConfig() (*Config, error) {
 
 	// Check for required configuration
 	if serverIP == "" {
-		return nil, fmt.Errorf("SERVER_IP not set and could not determine from node label")
+		return nil, fmt.Errorf("Could not determine from node label")
 	}
 
 	if inwxUser == "" || inwxRecordIDStr == "" {
