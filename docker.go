@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"net"
 	"net/http"
@@ -28,9 +29,9 @@ type DockerEvent struct {
 // NodeInfo represents Docker Swarm node information
 type NodeInfo struct {
 	ID            string `json:"ID"`
-	ManagerStatus struct {
+	ManagerStatus *struct {
 		Leader bool `json:"Leader"`
-	} `json:"ManagerStatus"`
+	} `json:"ManagerStatus,omitempty"`
 	Self bool `json:"Self"`
 }
 
@@ -90,14 +91,26 @@ func (d *DockerClient) IsSwarmLeader() bool {
 	}
 	defer resp.Body.Close()
 
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		log.Printf("Error reading response body: %v", err)
+		return false
+	}
+
+	// Only log the raw response if log level is DEBUG
+	if getEnv("SENTINEL_LOG_LEVEL", "INFO") == "DEBUG" {
+		log.Printf("Raw nodes response: %s", string(body))
+	}
+
 	var nodes []NodeInfo
-	if err := json.NewDecoder(resp.Body).Decode(&nodes); err != nil {
+	if err := json.Unmarshal(body, &nodes); err != nil {
 		log.Printf("Error parsing nodes response: %v", err)
 		return false
 	}
 
 	for _, node := range nodes {
-		if node.Self && node.ManagerStatus.Leader {
+		// Check if this is the current node and it has ManagerStatus with Leader=true
+		if node.Self && node.ManagerStatus != nil && node.ManagerStatus.Leader {
 			return true
 		}
 	}
