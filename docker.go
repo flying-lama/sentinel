@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
+	"fmt"
 	"log"
 	"net"
 	"net/http"
@@ -141,4 +142,84 @@ func (d *DockerClient) WatchEvents(callback func()) {
 	if err := scanner.Err(); err != nil {
 		log.Printf("Error reading events: %v", err)
 	}
+}
+
+// GetCurrentNodeID retrieves the ID of the current node from Docker API
+func (d *DockerClient) GetCurrentNodeID() (string, error) {
+	// Docker API endpoint for information about the current node
+	req, err := http.NewRequest("GET", "http://localhost/info", nil)
+	if err != nil {
+		return "", fmt.Errorf("error creating request: %v", err)
+	}
+
+	resp, err := d.client.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("error connecting to Docker API: %v", err)
+	}
+	defer resp.Body.Close()
+
+	var info struct {
+		Swarm struct {
+			NodeID string `json:"NodeID"`
+		} `json:"Swarm"`
+	}
+
+	if err := json.NewDecoder(resp.Body).Decode(&info); err != nil {
+		return "", fmt.Errorf("error parsing node info: %v", err)
+	}
+
+	if info.Swarm.NodeID == "" {
+		return "", fmt.Errorf("could not determine node ID")
+	}
+
+	return info.Swarm.NodeID, nil
+}
+
+// GetNodeLabel retrieves a specific label from a node
+func (d *DockerClient) GetNodeLabel(nodeID, labelName string) (string, error) {
+	// Docker API endpoint for node information
+	req, err := http.NewRequest("GET", fmt.Sprintf("http://localhost/nodes/%s", nodeID), nil)
+	if err != nil {
+		return "", fmt.Errorf("error creating request: %v", err)
+	}
+
+	resp, err := d.client.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("error connecting to Docker API: %v", err)
+	}
+	defer resp.Body.Close()
+
+	var node struct {
+		Spec struct {
+			Labels map[string]string `json:"Labels"`
+		} `json:"Spec"`
+	}
+
+	if err := json.NewDecoder(resp.Body).Decode(&node); err != nil {
+		return "", fmt.Errorf("error parsing node response: %v", err)
+	}
+
+	value, exists := node.Spec.Labels[labelName]
+	if !exists {
+		return "", fmt.Errorf("label %s not found on node %s", labelName, nodeID)
+	}
+
+	return value, nil
+}
+
+// GetNodePublicIP retrieves the public IP address from the node's label
+func (d *DockerClient) GetNodePublicIP() (string, error) {
+	// First get the node ID
+	nodeID, err := d.GetCurrentNodeID()
+	if err != nil {
+		return "", fmt.Errorf("failed to get node ID: %v", err)
+	}
+
+	// Then retrieve the public IP label
+	publicIP, err := d.GetNodeLabel(nodeID, "public_ip")
+	if err != nil {
+		return "", fmt.Errorf("failed to get public_ip label: %v", err)
+	}
+
+	return publicIP, nil
 }

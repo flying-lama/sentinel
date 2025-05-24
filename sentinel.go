@@ -28,18 +28,23 @@ type Sentinel struct {
 }
 
 // NewConfig creates a new Config from environment variables
-// NewConfig creates a new Config from environment variables
 func NewConfig() (*Config, error) {
 	domain := getEnv("DOMAIN", "example.com")
 	record := getEnv("RECORD", "lb")
-	serverIP := getEnv("SERVER_IP", "")
 	inwxUser := getEnv("INWX_USER", "")
 	inwxRecordIDStr := getEnv("INWX_RECORD_ID", "")
 	logLevel := getEnv("LOG_LEVEL", "INFO")
 
-	// Check for required environment variables
+	dockerClient := NewDockerClient()
+	var err error
+	serverIP, err := dockerClient.GetNodePublicIP()
+	if err != nil {
+		log.Fatalf("Error: Could not get public IP from node label: %v", err)
+	}
+
+	// Check for required configuration
 	if serverIP == "" {
-		return nil, fmt.Errorf("SERVER_IP not set")
+		return nil, fmt.Errorf("SERVER_IP not set and could not determine from node label")
 	}
 
 	if inwxUser == "" || inwxRecordIDStr == "" {

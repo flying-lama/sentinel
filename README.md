@@ -57,12 +57,24 @@ docker stack deploy -c docker-compose.yml sentinel
 |---------------------------|------------------------------------|-------------|
 | `SENTINEL_DOMAIN`         | Domain name                        | example.com |
 | `SENTINEL_RECORD`         | Record name (subdomain)            | lb          |
-| `SENTINEL_SERVER_IP`      | Public IP of this server           | *required*  |
 | `SENTINEL_INWX_USER`      | INWX username                      | *required*  |
 | `SENTINEL_INWX_PASSWORD`  | INWX password                      | *required*  |
 | `SENTINEL_INWX_RECORD_ID` | ID of the DNS record to update     | *required*  |
 | `SENTINEL_LOG_LEVEL`      | Logging level (DEBUG, INFO, ERROR) | INFO        |
 
+#### Node labels for public IPs
+Instead of setting SENTINEL_SERVER_IP Sentinel can read the public IP address of each node from a Docker Swarm node label.
+Run the following command on each node to set the "public_ip" label:
+
+```bash
+PUBLIC_IP=$(curl -s https://api.ipify.org) \
+NODE_ID=$(docker info --format '{{.Swarm.NodeID}}') ; \
+docker node update --label-add public_ip=$PUBLIC_IP $NODE_ID
+```
+To verify that the label was set correctly, run:
+```bash
+docker node inspect $NODE_ID --format '{{ index .Spec.Labels "public_ip" }}'
+```
 ## Development
 
 1. Create a `.env` file with your configuration:
