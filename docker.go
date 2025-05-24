@@ -32,7 +32,6 @@ type NodeInfo struct {
 	ManagerStatus *struct {
 		Leader bool `json:"Leader"`
 	} `json:"ManagerStatus,omitempty"`
-	Self bool `json:"Self"`
 }
 
 // NewDockerClient creates a new Docker API client
@@ -78,6 +77,12 @@ func (d *DockerClient) IsSwarmActive() bool {
 
 // IsSwarmLeader checks if this node is the swarm leader
 func (d *DockerClient) IsSwarmLeader() bool {
+	currentNodeID, err := d.GetCurrentNodeID()
+	if err != nil {
+		log.Printf("Error getting current node ID: %v", err)
+		return false
+	}
+
 	req, err := http.NewRequest("GET", "http://localhost/nodes", nil)
 	if err != nil {
 		log.Printf("Error creating request: %v", err)
@@ -109,8 +114,7 @@ func (d *DockerClient) IsSwarmLeader() bool {
 	}
 
 	for _, node := range nodes {
-		// Check if this is the current node and it has ManagerStatus with Leader=true
-		if node.Self && node.ManagerStatus != nil && node.ManagerStatus.Leader {
+		if node.ID == currentNodeID && node.ManagerStatus != nil && node.ManagerStatus.Leader {
 			return true
 		}
 	}
