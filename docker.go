@@ -98,7 +98,7 @@ func (d *DockerClient) IsSwarmLeader() bool {
 	}
 
 	// Only log the raw response if log level is DEBUG
-	if getEnv("SENTINEL_LOG_LEVEL", "INFO") == "DEBUG" {
+	if getEnv("LOG_LEVEL", "INFO") == "DEBUG" {
 		log.Printf("Raw nodes response: %s", string(body))
 	}
 
