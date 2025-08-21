@@ -34,21 +34,30 @@ func NewK8sClient() (*K8sClient, error) {
 	return &K8sClient{clientset: clientset}, nil
 }
 
-// GetNodePublicIP retrieves the public IP address from the node's label
+// getNodeName retrieves the current node name from environment variable
+func (k *K8sClient) getNodeName() (string, error) {
+	nodeName := os.Getenv("NODE_NAME")
+	if nodeName == "" {
+		return "", fmt.Errorf("NODE_NAME environment variable not set")
+	}
+	return nodeName, nil
+}
+
+// GetNodePublicIP retrieves the public IP address from node labels
 func (k *K8sClient) GetNodePublicIP() (string, error) {
-	hostname, err := os.Hostname()
+	nodeName, err := k.getNodeName()
 	if err != nil {
-		return "", fmt.Errorf("error getting hostname: %v", err)
+		return "", err
 	}
 
-	node, err := k.clientset.CoreV1().Nodes().Get(context.TODO(), hostname, metav1.GetOptions{})
+	node, err := k.clientset.CoreV1().Nodes().Get(context.TODO(), nodeName, metav1.GetOptions{})
 	if err != nil {
 		return "", fmt.Errorf("error getting node: %v", err)
 	}
 
 	publicIP, exists := node.Labels["public_ip"]
 	if !exists {
-		return "", fmt.Errorf("public_ip label not found on node %s", hostname)
+		return "", fmt.Errorf("public_ip label not found on node %s", nodeName)
 	}
 
 	return publicIP, nil
@@ -56,9 +65,9 @@ func (k *K8sClient) GetNodePublicIP() (string, error) {
 
 // IsLeader checks if the current host is the leader based on a ConfigMap
 func (k *K8sClient) IsLeader() bool {
-	hostname, err := os.Hostname()
+	nodeName, err := k.getNodeName()
 	if err != nil {
-		log.Printf("Error getting hostname: %v", err)
+		log.Printf("Error getting node name: %v", err)
 		return false
 	}
 
@@ -74,7 +83,7 @@ func (k *K8sClient) IsLeader() bool {
 		return false
 	}
 
-	return leader == hostname
+	return leader == nodeName
 }
 
 // WatchEvents watches for changes in the leader election ConfigMap
