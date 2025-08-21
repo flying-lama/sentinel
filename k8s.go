@@ -43,7 +43,7 @@ func (k *K8sClient) getNodeName() (string, error) {
 	return nodeName, nil
 }
 
-// GetNodePublicIP retrieves the public IP address from node labels
+// GetNodePublicIP retrieves the public IP address from node
 func (k *K8sClient) GetNodePublicIP() (string, error) {
 	nodeName, err := k.getNodeName()
 	if err != nil {
@@ -55,12 +55,20 @@ func (k *K8sClient) GetNodePublicIP() (string, error) {
 		return "", fmt.Errorf("error getting node: %v", err)
 	}
 
+	// Try to get from label
 	publicIP, exists := node.Labels["public_ip"]
-	if !exists {
-		return "", fmt.Errorf("public_ip label not found on node %s", nodeName)
+	if exists {
+		return publicIP, nil
 	}
 
-	return publicIP, nil
+	// Look for ExternalIP in node addresses
+	for _, address := range node.Status.Addresses {
+		if address.Type == v1.NodeExternalIP {
+			return address.Address, nil
+		}
+	}
+
+	return "", fmt.Errorf("no external IP found for node %s (neither in addresses nor in public_ip label)", nodeName)
 }
 
 // IsLeader checks if the current host is the leader based on a ConfigMap
