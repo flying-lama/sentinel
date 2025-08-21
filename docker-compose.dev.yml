@@ -12,5 +12,8 @@ services:
       - SENTINEL_INWX_PASSWORD=${SENTINEL_INWX_PASSWORD}
       - SENTINEL_INWX_RECORD_ID=${SENTINEL_INWX_RECORD_ID}
       - SENTINEL_LOG_LEVEL=${SENTINEL_LOG_LEVEL}
+      - SENTINEL_ORCHESTRATION_TYPE=${SENTINEL_ORCHESTRATION_TYPE}
+      - KUBECONFIG=/app/.kube/config
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ~/.kube/config:/app/.kube/config:ro

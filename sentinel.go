@@ -6,25 +6,28 @@ import (
 	"os"
 	"strconv"
 	"strings"
-	"time"
 )
+
+const OrchestrationTypeDockerSwarm = "swarm"
+const OrchestrationTypeKubernetes = "kubernetes"
 
 // Config holds the application configuration
 type Config struct {
-	Domain       string
-	Record       string
-	ServerIP     string
-	InwxUser     string
-	InwxPassword string
-	RecordID     int
-	LogLevel     string
+	Domain            string
+	Record            string
+	ServerIP          string
+	InwxUser          string
+	InwxPassword      string
+	RecordID          int
+	LogLevel          string
+	OrchestrationType string
 }
 
 // Sentinel is the main application struct
 type Sentinel struct {
-	config       *Config
-	dockerClient *DockerClient
-	inwxClient   *InwxClient
+	Config        *Config
+	inwxClient    *InwxClient
+	orchestration OrchestrationAdapter
 }
 
 // NewConfig creates a new Config from environment variables
@@ -34,18 +37,8 @@ func NewConfig() (*Config, error) {
 	inwxUser := getEnv("INWX_USER", "")
 	inwxRecordIDStr := getEnv("INWX_RECORD_ID", "")
 	logLevel := getEnv("LOG_LEVEL", "INFO")
-
-	dockerClient := NewDockerClient()
+	orchestrationType := getEnv("ORCHESTRATION_TYPE", OrchestrationTypeDockerSwarm)
 	var err error
-	serverIP, err := dockerClient.GetNodePublicIP()
-	if err != nil {
-		log.Fatalf("Error: Could not get public IP from node label: %v", err)
-	}
-
-	// Check for required configuration
-	if serverIP == "" {
-		return nil, fmt.Errorf("Could not determine from node label")
-	}
 
 	if inwxUser == "" || inwxRecordIDStr == "" {
 		return nil, fmt.Errorf("INWX_USER or INWX_RECORD_ID not set")
@@ -67,72 +60,85 @@ func NewConfig() (*Config, error) {
 	}
 
 	return &Config{
-		Domain:       domain,
-		Record:       record,
-		ServerIP:     serverIP,
-		InwxUser:     inwxUser,
-		InwxPassword: inwxPassword,
-		RecordID:     recordID,
-		LogLevel:     logLevel,
+		Domain:            domain,
+		Record:            record,
+		InwxUser:          inwxUser,
+		InwxPassword:      inwxPassword,
+		RecordID:          recordID,
+		LogLevel:          logLevel,
+		OrchestrationType: orchestrationType,
 	}, nil
 }
 
 // NewSentinel creates a new Sentinel instance
 func NewSentinel(config *Config) *Sentinel {
-	return &Sentinel{
-		config:       config,
-		dockerClient: NewDockerClient(),
-		inwxClient:   NewInwxClient(config),
+	sentinel := &Sentinel{
+		Config:     config,
+		inwxClient: NewInwxClient(config),
 	}
+
+	if config.OrchestrationType == OrchestrationTypeDockerSwarm {
+		sentinel.orchestration = NewDockerClient()
+	} else if config.OrchestrationType == OrchestrationTypeKubernetes {
+		k8sAdapter, err := NewK8sClient()
+		if err != nil {
+			log.Fatalf("Error creating Kubernetes orchestration: %v", err)
+		}
+		sentinel.orchestration = k8sAdapter
+	}
+
+	serverIP, err := sentinel.orchestration.GetNodePublicIP()
+	if err != nil {
+		log.Fatalf("Error: Could not get public IP: %v", err)
+	}
+	sentinel.Config.ServerIP = serverIP
+
+	return sentinel
 }
 
 // CheckAndUpdateDNS checks if this node is the leader and updates DNS if needed
 func (s *Sentinel) CheckAndUpdateDNS() {
-	if s.dockerClient.IsSwarmLeader() {
-		log.Println("This instance is the Swarm Leader")
+	if s.orchestration.IsLeader() {
+		s.updateDNS()
+	}
+}
 
-		currentIP, err := s.inwxClient.GetRecordContent()
-		if err != nil {
-			log.Printf("Could not determine current DNS record: %v", err)
-			return
-		}
+func (s *Sentinel) updateDNS() {
+	log.Println("This instance is the Leader")
 
-		if currentIP != s.config.ServerIP {
-			log.Printf("DNS points to %s, should point to %s", currentIP, s.config.ServerIP)
-			if err := s.inwxClient.UpdateDNS(s.config.ServerIP); err != nil {
-				log.Printf("DNS update failed: %v", err)
-			} else {
-				log.Printf("DNS update successful")
-			}
+	currentIP, err := s.inwxClient.GetRecordContent()
+	if err != nil {
+		log.Printf("Could not determine current DNS record: %v", err)
+		return
+	}
+
+	if currentIP != s.Config.ServerIP {
+		log.Printf("DNS points to %s, should point to %s", currentIP, s.Config.ServerIP)
+		if err := s.inwxClient.UpdateDNS(s.Config.ServerIP); err != nil {
+			log.Printf("DNS update failed: %v", err)
 		} else {
-			log.Printf("DNS correctly points to %s", s.config.ServerIP)
+			log.Printf("DNS update successful")
 		}
 	} else {
-		log.Println("This instance is not the Swarm Leader")
+		log.Printf("DNS correctly points to %s", s.Config.ServerIP)
 	}
 }
 
 // Run starts the sentinel monitoring process
 func (s *Sentinel) Run() {
-	log.Printf("Sentinel DNS Monitor for %s.%s started", s.config.Record, s.config.Domain)
-	log.Printf("Server IP: %s", s.config.ServerIP)
+	log.Printf("Sentinel DNS Monitor for %s.%s started", s.Config.Record, s.Config.Domain)
+	log.Printf("Server IP: %s", s.Config.ServerIP)
 
-	// Check if Docker is running in swarm mode
-	if !s.dockerClient.IsSwarmActive() {
-		log.Fatal("Docker is not running in swarm mode. Sentinel requires Docker Swarm to be active.")
+	configErrs := s.orchestration.GetConfigurationErrors()
+	if len(configErrs) > 0 {
+		log.Fatal("Invalid configuration: ", configErrs)
 	}
 
 	// Initial check
 	s.CheckAndUpdateDNS()
 
 	// Watch for events
-	for {
-		log.Println("Starting Docker events monitoring...")
-		s.dockerClient.WatchEvents(s.CheckAndUpdateDNS)
-
-		log.Println("Docker events connection lost, reconnecting in 5 seconds...")
-		time.Sleep(5 * time.Second)
-	}
+	s.orchestration.WatchEvents(s.CheckAndUpdateDNS)
 }
 
 func getEnv(key, fallback string) string {

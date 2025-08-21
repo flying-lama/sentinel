@@ -75,8 +75,17 @@ func (d *DockerClient) IsSwarmActive() bool {
 	return swarmInfo.ID != ""
 }
 
-// IsSwarmLeader checks if this node is the swarm leader
-func (d *DockerClient) IsSwarmLeader() bool {
+func (d *DockerClient) GetConfigurationErrors() []string {
+	var errs []string
+	if !d.IsSwarmActive() {
+		errs = append(errs, "Docker is not running in swarm mode")
+	}
+
+	return errs
+}
+
+// IsLeader checks if this node is the swarm leader
+func (d *DockerClient) IsLeader() bool {
 	currentNodeID, err := d.GetCurrentNodeID()
 	if err != nil {
 		log.Printf("Error getting current node ID: %v", err)
