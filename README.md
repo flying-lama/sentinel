@@ -55,7 +55,7 @@ Feel free to create a pull request to add more providers.
 ```bash
 echo "mySecurePassword123" | docker secret create inwx_password -
 ```
-2. Copy the docker-compose.yml file and adjust it to your needs
+2. Copy the docker-compose.yml file from ``deployment/docker-swarm`` folder and adjust it to your needs
 3. Deploy as a stack to your Swarm cluster:
 
 ```bash
