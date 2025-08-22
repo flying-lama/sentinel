@@ -9,7 +9,7 @@ It ensures high availability by pointing your domain to the current leader node.
 
 - 🔄 Automatic DNS failover for Docker Swarm and Kubernetes clusters
 - 🔍 Real-time monitoring of leader changes
-- 🌐 DNS record updates via INWX API
+- 🌐 DNS record updates
 - 🔒 Secure and lightweight (built on scratch container)
 - 🚀 Easy to deploy and configure
 
@@ -28,21 +28,23 @@ Failover time depends on your DNS record TTL, making this solution less suitable
 
 ## Supported DNS Providers
 
-Currently, only **INWX** is supported.  
+- INWX
+- Bunny DNS
+
 Feel free to create a pull request to add more providers.
 
 ## Quick Start
 
 ### Prerequisites
 
-- INWX account with API access
-- ID of the DNS record you want to manage
+- Account for one of the supported DNS providers
+- A DNS zone (``SENTINEL_DOMAIN``)
+- An A or AAAA record in the zone (``SENTINEL_RECORD``)
 
-
-**For Docker Swarm:**
+**For Docker Swarm:**  
 - Docker Swarm cluster with at least one manager node
 
-**For Kubernetes:**
+**For Kubernetes:**  
 - Kubernetes cluster with at least one control plane node
 
 ### Deployment
@@ -62,8 +64,8 @@ docker stack deploy -c docker-compose.yml sentinel
 
 #### Kubernetes Deployment
 1. Copy and adjust the files from the ``deployment/kubernetes`` folder.
-2. Deploy via ´´kubectl apply``
-3. Create a Kubernetes secret for the INWX credentials
+2. Deploy via ``kubectl apply``
+3. Create a Kubernetes secret for the **INWX** credentials (optional)
 ```bash
 kubectl create secret generic sentinel-inwx-credentials \
   --namespace sentinel \
@@ -71,22 +73,30 @@ kubectl create secret generic sentinel-inwx-credentials \
   --from-literal=password="mySecurePassword123" \
   --dry-run=client -o yaml | kubectl apply -f -
 ```
+4. Create a Kubernetes secret for the **Bunny DNS** credentials (optional)
+```bash
+kubectl create secret generic sentinel-bunny-credentials \
+  --namespace sentinel \
+  --from-literal=api_key="my-api-key" \
+  --dry-run=client -o yaml | kubectl apply -f 
+```
 
 ### Configuration
 
-| Environment Variable      | Description                               | Default                                              |
-|---------------------------|-------------------------------------------|------------------------------------------------------|
-| `SENTINEL_DOMAIN`         | Domain name                               | example.com                                          |
-| `SENTINEL_RECORD`         | Record name (subdomain)                   | lb                                                   |
-| `SENTINEL_INWX_USER`      | INWX username                             | *required*                                           |
-| `SENTINEL_INWX_PASSWORD`  | INWX password                             | *required, if docker secret "inwx_password" not set* |
-| `SENTINEL_INWX_RECORD_ID` | ID of the DNS record to update            | *required*                                           |
-| `SENTINEL_LOG_LEVEL`      | Logging level (DEBUG, INFO, ERROR)        | INFO                                                 |
-| `SENTINEL_ORCHESTRATION`  | Orchestration platform (swarm/kubernetes) | swarm                                                |
+| Environment Variable     | Description                               | Default                              |
+|--------------------------|-------------------------------------------|--------------------------------------|
+| `SENTINEL_DOMAIN`        | Domain name                               | example.com                          |
+| `SENTINEL_RECORD`        | Record name (subdomain)                   | lb                                   |
+| `SENTINEL_LOG_LEVEL`     | Logging level (DEBUG, INFO, ERROR)        | INFO                                 |
+| `SENTINEL_ORCHESTRATION` | Orchestration platform (swarm/kubernetes) | swarm                                |
+| `SENTINEL_DNS_PROVIDER`  | Name of DNS provider (inwx/bunny)         | inwx                                 |
+| `SENTINEL_INWX_USER`     | INWX username                             | *required, if dns provider is inwx*  |
+| `SENTINEL_INWX_PASSWORD` | INWX password                             | *required, if dns provider is inwx*  |
+| `SENTINEL_BUNNY_API_KEY` | Bunny API key                             | *required, if dns provider is bunny* |
 
 #### Public IP configuration
 
-**Docker Swarm**
+**Docker Swarm**  
 Run the following command on each node to set the "public_ip" label:
 ```bash
 PUBLIC_IP=$(curl -s https://api.ipify.org) \
@@ -98,7 +108,7 @@ To verify that the label was set correctly, run:
 docker node inspect $NODE_ID --format '{{ index .Spec.Labels "public_ip" }}'
 ```
 
-**Kubernetes**
+**Kubernetes**  
 Without setting a label the first external IP address of the node is used.
 If you want to set it to something else you can run the following command on each node to set the "public_ip" label (replace ``mynode`` with your node name)
 ```bash
@@ -159,4 +169,6 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 
 - [Docker Engine API](https://docs.docker.com/engine/api/)
 - [Kubernetes](https://kubernetes.io/)
+- [libdns](https://github.com/libdns/libdns)
 - [INWX API](https://www.inwx.com/en/help/apidoc)
+- [Bunny API](https://docs.bunny.net/reference/bunnynet-api-overview)
