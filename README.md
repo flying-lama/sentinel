@@ -1,22 +1,23 @@
-# Sentinel - Docker Swarm DNS Failover Manager
+# Sentinel - DNS Failover Manager
 
-Sentinel is a lightweight service that automatically updates DNS records when Docker Swarm leadership changes. It ensures high availability by pointing your domain to the current Swarm leader.
+Sentinel is a lightweight service that automatically updates DNS records when container orchestration leadership changes. 
+It ensures high availability by pointing your domain to the current leader node.
 
 ![Sentinel Logo](./images/logo.png)
 
 ## Features
 
-- 🔄 Automatic DNS failover for Docker Swarm clusters
-- 🔍 Real-time monitoring of Swarm leader changes
+- 🔄 Automatic DNS failover for Docker Swarm and Kubernetes clusters
+- 🔍 Real-time monitoring of leader changes
 - 🌐 DNS record updates via INWX API
 - 🔒 Secure and lightweight (built on scratch container)
 - 🚀 Easy to deploy and configure
 
 ## How It Works
 
-Sentinel runs on each manager node in your Docker Swarm cluster. It:
+Sentinel runs on manager/control plane nodes in your cluster. It:
 
-1. Monitors Docker Swarm events for leadership changes
+1. Monitors orchestration events for leadership changes
 2. Updates the DNS record to point to the leader node's IP when changes occur
 
 ## Use Cases
@@ -34,11 +35,19 @@ Feel free to create a pull request to add more providers.
 
 ### Prerequisites
 
-- Docker Swarm cluster with at least one manager node
 - INWX account with API access
 - ID of the DNS record you want to manage
 
+
+**For Docker Swarm:**
+- Docker Swarm cluster with at least one manager node
+
+**For Kubernetes:**
+- Kubernetes cluster with at least one control plane node
+
 ### Deployment
+
+#### Docker Swarm Deployment
 
 1. Create a Docker secret for the INWX password
 ```bash
@@ -51,21 +60,34 @@ echo "mySecurePassword123" | docker secret create inwx_password -
 docker stack deploy -c docker-compose.yml sentinel
 ```
 
+#### Kubernetes Deployment
+1. Copy and adjust the files from the ``deployment/kubernetes`` folder.
+2. Deploy via ´´kubectl apply``
+3. Create a Kubernetes secret for the INWX credentials
+```bash
+kubectl create secret generic sentinel-inwx-credentials \
+  --namespace sentinel \
+  --from-literal=username="myusername" \
+  --from-literal=password="mySecurePassword123" \
+  --dry-run=client -o yaml | kubectl apply -f -
+```
+
 ### Configuration
 
-| Environment Variable      | Description                        | Default                                               |
-|---------------------------|------------------------------------|-------------------------------------------------------|
-| `SENTINEL_DOMAIN`         | Domain name                        | example.com                                           |
-| `SENTINEL_RECORD`         | Record name (subdomain)            | lb                                                    |
-| `SENTINEL_INWX_USER`      | INWX username                      | *required*                                            |
-| `SENTINEL_INWX_PASSWORD`  | INWX password                      | *required, if docker secret "inwx_password" not set* |
-| `SENTINEL_INWX_RECORD_ID` | ID of the DNS record to update     | *required*                                            |
-| `SENTINEL_LOG_LEVEL`      | Logging level (DEBUG, INFO, ERROR) | INFO                                                  |
+| Environment Variable      | Description                               | Default                                              |
+|---------------------------|-------------------------------------------|------------------------------------------------------|
+| `SENTINEL_DOMAIN`         | Domain name                               | example.com                                          |
+| `SENTINEL_RECORD`         | Record name (subdomain)                   | lb                                                   |
+| `SENTINEL_INWX_USER`      | INWX username                             | *required*                                           |
+| `SENTINEL_INWX_PASSWORD`  | INWX password                             | *required, if docker secret "inwx_password" not set* |
+| `SENTINEL_INWX_RECORD_ID` | ID of the DNS record to update            | *required*                                           |
+| `SENTINEL_LOG_LEVEL`      | Logging level (DEBUG, INFO, ERROR)        | INFO                                                 |
+| `SENTINEL_ORCHESTRATION`  | Orchestration platform (swarm/kubernetes) | swarm                                                |
 
-#### Node labels for public IPs
-Sentinel can read the public IP address of each node from a Docker Swarm node label.
+#### Public IP configuration
+
+**Docker Swarm**
 Run the following command on each node to set the "public_ip" label:
-
 ```bash
 PUBLIC_IP=$(curl -s https://api.ipify.org) \
 NODE_ID=$(docker info --format '{{.Swarm.NodeID}}') ; \
@@ -75,6 +97,15 @@ To verify that the label was set correctly, run:
 ```bash
 docker node inspect $NODE_ID --format '{{ index .Spec.Labels "public_ip" }}'
 ```
+
+**Kubernetes**
+Without setting a label the first external IP address of the node is used.
+If you want to set it to something else you can run the following command on each node to set the "public_ip" label (replace ``mynode`` with your node name)
+```bash
+PUBLIC_IP=$(curl -s https://api.ipify.org) \
+kubectl label nodes mynode public_ip=$PUBLIC_IP
+```
+
 ## Development
 
 ```bash
@@ -100,6 +131,7 @@ make clean
 # Build Docker image
 make build
 ```
+
 ## Architecture
 
 Sentinel is built with Go and designed to be lightweight and reliable:
@@ -126,4 +158,5 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 ## Acknowledgements
 
 - [Docker Engine API](https://docs.docker.com/engine/api/)
+- [Kubernetes](https://kubernetes.io/)
 - [INWX API](https://www.inwx.com/en/help/apidoc)
