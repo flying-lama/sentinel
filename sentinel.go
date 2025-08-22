@@ -1,32 +1,41 @@
 package main
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"log"
+	"net/netip"
 	"os"
-	"strconv"
 	"strings"
+	"time"
+
+	"github.com/libdns/bunny"
+	"github.com/libdns/inwx"
+	"github.com/libdns/libdns"
 )
 
 const OrchestrationTypeDockerSwarm = "swarm"
 const OrchestrationTypeKubernetes = "kubernetes"
 
+const DnsProviderInwx = "inwx"
+const DnsProviderBunny = "bunny"
+
 // Config holds the application configuration
 type Config struct {
 	Domain            string
 	Record            string
+	RecordTTL         int64
 	ServerIP          string
-	InwxUser          string
-	InwxPassword      string
-	RecordID          int
 	LogLevel          string
 	OrchestrationType string
+	DnsProvider       string // "inwx" or "bunny"
 }
 
 // Sentinel is the main application struct
 type Sentinel struct {
 	Config        *Config
-	inwxClient    *InwxClient
+	DnsClient     DnsClient
 	orchestration OrchestrationAdapter
 }
 
@@ -34,48 +43,80 @@ type Sentinel struct {
 func NewConfig() (*Config, error) {
 	domain := getEnv("DOMAIN", "example.com")
 	record := getEnv("RECORD", "lb")
-	inwxUser := getEnv("INWX_USER", "")
-	inwxRecordIDStr := getEnv("INWX_RECORD_ID", "")
 	logLevel := getEnv("LOG_LEVEL", "INFO")
 	orchestrationType := getEnv("ORCHESTRATION_TYPE", OrchestrationTypeDockerSwarm)
-	var err error
+	dnsProvider := getEnv("DNS_PROVIDER", DnsProviderInwx)
 
-	if inwxUser == "" || inwxRecordIDStr == "" {
-		return nil, fmt.Errorf("INWX_USER or INWX_RECORD_ID not set")
+	config := &Config{
+		Domain:            domain,
+		Record:            record,
+		LogLevel:          logLevel,
+		OrchestrationType: orchestrationType,
+		DnsProvider:       dnsProvider,
 	}
 
-	// Try to read password from Docker secret first
+	return config, nil
+}
+
+func configureInwx(c *Config) (*inwx.Provider, error) {
+	c.RecordTTL = 300
+
+	inwxUser := getEnv("INWX_USER", "")
+
+	if inwxUser == "" {
+		return nil, fmt.Errorf("INWX_USER not set")
+	}
+
 	inwxPassword, err := readSecret("/run/secrets/inwx_password")
 	if err != nil {
-		// Fall back to environment variable if secret not available
 		inwxPassword = getEnv("INWX_PASSWORD", "")
 		if inwxPassword == "" {
 			return nil, fmt.Errorf("INWX_PASSWORD not set and could not read from secret: %v", err)
 		}
 	}
 
-	recordID, err := strconv.Atoi(inwxRecordIDStr)
-	if err != nil {
-		return nil, fmt.Errorf("invalid INWX_RECORD_ID: %v", err)
+	return &inwx.Provider{
+		Username: inwxUser,
+		Password: inwxPassword,
+	}, nil
+}
+
+func configureBunny(c *Config) (*bunny.Provider, error) {
+	c.RecordTTL = 15
+
+	bunnyAPIKey := getEnv("BUNNY_API_KEY", "")
+
+	if bunnyAPIKey == "" {
+		return nil, fmt.Errorf("BUNNY_API_KEY not set")
 	}
 
-	return &Config{
-		Domain:            domain,
-		Record:            record,
-		InwxUser:          inwxUser,
-		InwxPassword:      inwxPassword,
-		RecordID:          recordID,
-		LogLevel:          logLevel,
-		OrchestrationType: orchestrationType,
+	return &bunny.Provider{
+		AccessKey: bunnyAPIKey,
 	}, nil
 }
 
 // NewSentinel creates a new Sentinel instance
 func NewSentinel(config *Config) *Sentinel {
 	sentinel := &Sentinel{
-		Config:     config,
-		inwxClient: NewInwxClient(config),
+		Config: config,
 	}
+
+	var dnsClient DnsClient
+	var err error
+	switch config.DnsProvider {
+	case DnsProviderInwx:
+		dnsClient, err = configureInwx(config)
+	case DnsProviderBunny:
+		dnsClient, err = configureBunny(config)
+	default:
+		err = errors.New("Unsupported DNS provider: " + config.DnsProvider)
+	}
+
+	if err != nil {
+		log.Fatalf("Error configuring DNS provider%s: %v", config.DnsProvider, err)
+	}
+
+	sentinel.DnsClient = dnsClient
 
 	if config.OrchestrationType == OrchestrationTypeDockerSwarm {
 		sentinel.orchestration = NewDockerClient()
@@ -99,22 +140,43 @@ func NewSentinel(config *Config) *Sentinel {
 // CheckAndUpdateDNS checks if this node is the leader and updates DNS if needed
 func (s *Sentinel) CheckAndUpdateDNS() {
 	if s.orchestration.IsLeader() {
+		log.Println("This instance is the Leader")
 		s.updateDNS()
 	}
 }
 
 func (s *Sentinel) updateDNS() {
-	log.Println("This instance is the Leader")
+	ctx := context.Background()
+	zone := s.Config.Domain + "."
 
-	currentIP, err := s.inwxClient.GetRecordContent()
+	records, err := s.DnsClient.GetRecords(ctx, zone)
 	if err != nil {
-		log.Printf("Could not determine current DNS record: %v", err)
+		log.Printf("Could not get DNS records: %v", err)
 		return
+	}
+
+	var currentIP string
+	for _, record := range records {
+		rr := record.RR()
+		if rr.Name == s.Config.Record && rr.Type == "A" {
+			currentIP = rr.Data
+			break
+		}
 	}
 
 	if currentIP != s.Config.ServerIP {
 		log.Printf("DNS points to %s, should point to %s", currentIP, s.Config.ServerIP)
-		if err := s.inwxClient.UpdateDNS(s.Config.ServerIP); err != nil {
+
+		newRecords := []libdns.Record{
+			libdns.Address{
+				Name: s.Config.Record,
+				IP:   netip.MustParseAddr(s.Config.ServerIP),
+				TTL:  time.Duration(s.Config.RecordTTL) * time.Second,
+			},
+		}
+
+		_, err := s.DnsClient.SetRecords(ctx, zone, newRecords)
+		if err != nil {
 			log.Printf("DNS update failed: %v", err)
 		} else {
 			log.Printf("DNS update successful")

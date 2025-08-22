@@ -6,8 +6,4 @@ services:
       context: .
       dockerfile: test.Dockerfile
     environment:
-      - TEST_INWX_USER=${TEST_INWX_USER}
-      - TEST_INWX_PASSWORD=${TEST_INWX_PASSWORD}
-      - TEST_INWX_RECORD_ID=${TEST_INWX_RECORD_ID}
-      - TEST_IP=${TEST_IP:-1.2.3.4}
       - LOG_LEVEL=DEBUG

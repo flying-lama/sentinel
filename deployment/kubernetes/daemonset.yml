@@ -28,18 +28,27 @@ spec:
           value: "lb"
         - name: SENTINEL_LOG_LEVEL
           value: "INFO"
-        - name: SENTINEL_INWX_RECORD_ID
-          value: "1111"
-        - name: SENTINEL_INWX_USER
-          valueFrom:
-            secretKeyRef:
-              name: sentinel-inwx-credentials
-              key: username
-        - name: SENTINEL_INWX_PASSWORD
-          valueFrom:
-            secretKeyRef:
-              name: sentinel-inwx-credentials
-              key: password
+        # Bunny DNS
+        # - name: SENTINEL_DNS_PROVIDER
+        #   value: "bunny"
+        # - name: SENTINEL_BUNNY_API_KEY
+        #   valueFrom:
+        #     secretKeyRef:
+        #       name: sentinel-bunny-credentials
+        #       key: api_key
+        # INWX
+        # - name: SENTINEL_DNS_PROVIDER
+        #   value: "inwx"
+        # - name: SENTINEL_INWX_USER
+        #   valueFrom:
+        #     secretKeyRef:
+        #       name: sentinel-inwx-credentials
+        #       key: username
+        # - name: SENTINEL_INWX_PASSWORD
+        #   valueFrom:
+        #     secretKeyRef:
+        #       name: sentinel-inwx-credentials
+        #       key: password
         - name: NODE_NAME
           valueFrom:
             fieldRef:
