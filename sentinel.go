@@ -135,7 +135,7 @@ func (s *Sentinel) Run() {
 	}
 
 	nodeName, _ := s.orchestration.GetNodeName()
-	fmt.Println("Node name:", nodeName)
+	log.Printf("Node name: %s", nodeName)
 
 	// Initial check
 	s.CheckAndUpdateDNS()
