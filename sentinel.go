@@ -134,6 +134,9 @@ func (s *Sentinel) Run() {
 		log.Fatal("Invalid configuration: ", configErrs)
 	}
 
+	nodeName, _ := s.orchestration.GetNodeName()
+	fmt.Println("Node name:", nodeName)
+
 	// Initial check
 	s.CheckAndUpdateDNS()
 

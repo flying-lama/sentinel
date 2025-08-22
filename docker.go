@@ -32,6 +32,12 @@ type NodeInfo struct {
 	ManagerStatus *struct {
 		Leader bool `json:"Leader"`
 	} `json:"ManagerStatus,omitempty"`
+	Description struct {
+		Hostname string `json:"Hostname"`
+	} `json:"Description"`
+	Spec struct {
+		Labels map[string]string `json:"Labels"`
+	} `json:"Spec"`
 }
 
 // NewDockerClient creates a new Docker API client
@@ -201,28 +207,51 @@ func (d *DockerClient) GetCurrentNodeID() (string, error) {
 	return info.Swarm.NodeID, nil
 }
 
-// GetNodeLabel retrieves a specific label from a node
-func (d *DockerClient) GetNodeLabel(nodeID, labelName string) (string, error) {
-	// Docker API endpoint for node information
+// getNode retrieves detailed node information from Docker API
+func (d *DockerClient) getNode(nodeID string) (*NodeInfo, error) {
 	req, err := http.NewRequest("GET", fmt.Sprintf("http://localhost/nodes/%s", nodeID), nil)
 	if err != nil {
-		return "", fmt.Errorf("error creating request: %v", err)
+		return nil, fmt.Errorf("error creating request: %v", err)
 	}
 
 	resp, err := d.client.Do(req)
 	if err != nil {
-		return "", fmt.Errorf("error connecting to Docker API: %v", err)
+		return nil, fmt.Errorf("error connecting to Docker API: %v", err)
 	}
 	defer resp.Body.Close()
 
-	var node struct {
-		Spec struct {
-			Labels map[string]string `json:"Labels"`
-		} `json:"Spec"`
+	var node NodeInfo
+	if err := json.NewDecoder(resp.Body).Decode(&node); err != nil {
+		return nil, fmt.Errorf("error parsing node response: %v", err)
 	}
 
-	if err := json.NewDecoder(resp.Body).Decode(&node); err != nil {
-		return "", fmt.Errorf("error parsing node response: %v", err)
+	return &node, nil
+}
+
+// GetNodeName retrieves the current node name from Docker Swarm
+func (d *DockerClient) GetNodeName() (string, error) {
+	nodeID, err := d.GetCurrentNodeID()
+	if err != nil {
+		return "", fmt.Errorf("failed to get node ID: %v", err)
+	}
+
+	node, err := d.getNode(nodeID)
+	if err != nil {
+		return "", err
+	}
+
+	if node.Description.Hostname == "" {
+		return "", fmt.Errorf("hostname not found for node %s", nodeID)
+	}
+
+	return node.Description.Hostname, nil
+}
+
+// GetNodeLabel retrieves a specific label from a node
+func (d *DockerClient) GetNodeLabel(nodeID, labelName string) (string, error) {
+	node, err := d.getNode(nodeID)
+	if err != nil {
+		return "", err
 	}
 
 	value, exists := node.Spec.Labels[labelName]

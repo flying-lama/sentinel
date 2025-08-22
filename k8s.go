@@ -37,8 +37,8 @@ func NewK8sClient() (*K8sClient, error) {
 	return &K8sClient{clientset: clientset}, nil
 }
 
-// getNodeName retrieves the current node name from environment variable
-func (k *K8sClient) getNodeName() (string, error) {
+// GetNodeName retrieves the current node name from environment variable
+func (k *K8sClient) GetNodeName() (string, error) {
 	nodeName := os.Getenv("NODE_NAME")
 	if nodeName == "" {
 		return "", fmt.Errorf("NODE_NAME environment variable not set")
@@ -48,7 +48,7 @@ func (k *K8sClient) getNodeName() (string, error) {
 
 // GetNodePublicIP retrieves the public IP address from node
 func (k *K8sClient) GetNodePublicIP() (string, error) {
-	nodeName, err := k.getNodeName()
+	nodeName, err := k.GetNodeName()
 	if err != nil {
 		return "", err
 	}
@@ -76,7 +76,7 @@ func (k *K8sClient) GetNodePublicIP() (string, error) {
 
 // IsLeader checks if the current node is the leader by examining controller manager lease
 func (k *K8sClient) IsLeader() bool {
-	nodeName, err := k.getNodeName()
+	nodeName, err := k.GetNodeName()
 	if err != nil {
 		log.Printf("Error getting node name: %v", err)
 		return false
