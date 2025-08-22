@@ -10,6 +10,7 @@ import (
 	coordinationv1 "k8s.io/api/coordination/v1"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/clientcmd"
@@ -106,7 +107,7 @@ func (k *K8sClient) WatchEvents(callback func()) {
 		k.clientset.CoordinationV1().RESTClient(),
 		"leases",
 		"kube-system",
-		nil,
+		fields.Everything(),
 	)
 
 	informer := cache.NewSharedInformer(
@@ -117,8 +118,17 @@ func (k *K8sClient) WatchEvents(callback func()) {
 
 	_, err := informer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		UpdateFunc: func(oldObj, newObj interface{}) {
-			oldLease := oldObj.(*coordinationv1.Lease)
-			newLease := newObj.(*coordinationv1.Lease)
+			oldLease, ok := oldObj.(*coordinationv1.Lease)
+			if !ok {
+				log.Printf("Error: oldObj is not a Lease object")
+				return
+			}
+
+			newLease, ok := newObj.(*coordinationv1.Lease)
+			if !ok {
+				log.Printf("Error: newObj is not a Lease object")
+				return
+			}
 
 			// Watch for controller manager lease changes
 			if oldLease.Name == "kube-controller-manager" {
