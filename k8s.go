@@ -5,7 +5,9 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strings"
 
+	coordinationv1 "k8s.io/api/coordination/v1"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
@@ -71,7 +73,7 @@ func (k *K8sClient) GetNodePublicIP() (string, error) {
 	return "", fmt.Errorf("no external IP found for node %s (neither in addresses nor in public_ip label)", nodeName)
 }
 
-// IsLeader checks if the current host is the leader based on a ConfigMap
+// IsLeader checks if the current node is the leader by examining controller manager lease
 func (k *K8sClient) IsLeader() bool {
 	nodeName, err := k.getNodeName()
 	if err != nil {
@@ -79,46 +81,66 @@ func (k *K8sClient) IsLeader() bool {
 		return false
 	}
 
-	configMap, err := k.clientset.CoreV1().ConfigMaps("default").Get(context.TODO(), "leader-election", metav1.GetOptions{})
+	lease, err := k.clientset.CoordinationV1().Leases("kube-system").Get(context.TODO(), "kube-controller-manager", metav1.GetOptions{})
 	if err != nil {
-		log.Printf("Error getting ConfigMap: %v", err)
+		log.Printf("Error getting kube-controller-manager lease: %v", err)
 		return false
 	}
 
-	leader, exists := configMap.Data["leader"]
-	if !exists {
-		log.Println("Leader key not found in ConfigMap")
+	if lease.Spec.HolderIdentity == nil {
+		log.Println("No holder identity found in lease")
 		return false
 	}
 
-	return leader == nodeName
+	holderIdentity := *lease.Spec.HolderIdentity
+
+	// Check if the holder identity starts with our node name followed by underscore
+	// Format is typically: nodename_uuid
+	expectedPrefix := nodeName + "_"
+	return strings.HasPrefix(holderIdentity, expectedPrefix)
 }
 
-// WatchEvents watches for changes in the leader election ConfigMap
+// WatchEvents watches for changes in leader election leases
 func (k *K8sClient) WatchEvents(callback func()) {
 	listWatcher := cache.NewListWatchFromClient(
-		k.clientset.CoreV1().RESTClient(),
-		"configmaps",
-		"default",
+		k.clientset.CoordinationV1().RESTClient(),
+		"leases",
+		"kube-system",
 		nil,
 	)
 
 	informer := cache.NewSharedInformer(
 		listWatcher,
-		&v1.ConfigMap{},
+		&coordinationv1.Lease{},
 		0,
 	)
 
 	_, err := informer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		UpdateFunc: func(oldObj, newObj interface{}) {
-			oldConfigMap := oldObj.(*v1.ConfigMap)
-			newConfigMap := newObj.(*v1.ConfigMap)
-			if oldConfigMap.Name == "leader-election" && oldConfigMap.Data["leader"] != newConfigMap.Data["leader"] {
-				callback()
+			oldLease := oldObj.(*coordinationv1.Lease)
+			newLease := newObj.(*coordinationv1.Lease)
+
+			// Watch for controller manager lease changes
+			if oldLease.Name == "kube-controller-manager" {
+				oldHolder := ""
+				newHolder := ""
+
+				if oldLease.Spec.HolderIdentity != nil {
+					oldHolder = *oldLease.Spec.HolderIdentity
+				}
+				if newLease.Spec.HolderIdentity != nil {
+					newHolder = *newLease.Spec.HolderIdentity
+				}
+
+				if oldHolder != newHolder {
+					log.Printf("Leader change detected: %s -> %s", oldHolder, newHolder)
+					callback()
+				}
 			}
 		},
 	})
 	if err != nil {
+		log.Printf("Error adding event handler: %v", err)
 		return
 	}
 
