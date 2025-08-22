@@ -4,13 +4,13 @@ build:
 	docker build -t sentinel .
 
 dev: build
-	docker-compose -f docker-compose.dev.yml up --build --force-recreate
+	docker-compose -f docker-compose.dev.yml up --force-recreate
 
 dev-logs: build
-	docker-compose -f docker-compose.dev.yml up --build --force-recreate
+	docker-compose -f docker-compose.dev.yml up --force-recreate
 
 dev-detach: build
-	docker-compose -f docker-compose.dev.yml up -d --build --force-recreate
+	docker-compose -f docker-compose.dev.yml up -d --force-recreate
 
 stop:
 	docker-compose -f docker-compose.dev.yml down

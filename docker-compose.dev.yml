@@ -6,15 +6,18 @@ services:
       context: .
       dockerfile: Dockerfile
     environment:
+      - KUBECONFIG=/app/.kube/config
+      - NODE_NAME=${NODE_NAME}
       - SENTINEL_LOG_LEVEL=${SENTINEL_LOG_LEVEL}
       - SENTINEL_ORCHESTRATION_TYPE=${SENTINEL_ORCHESTRATION_TYPE}
       - SENTINEL_DNS_PROVIDER=${SENTINEL_DNS_PROVIDER}
       - SENTINEL_DOMAIN=${SENTINEL_DOMAIN}
       - SENTINEL_RECORD=${SENTINEL_RECORD}
-      - # INWX
+      # INWX
       - SENTINEL_INWX_USER=${SENTINEL_INWX_USER}
       - SENTINEL_INWX_PASSWORD=${SENTINEL_INWX_PASSWORD}
       # Bunny
       - SENTINEL_BUNNY_API_KEY=${SENTINEL_BUNNY_API_KEY}
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ~/.kube:/app/.kube:ro
